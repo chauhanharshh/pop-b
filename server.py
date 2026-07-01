@@ -64,7 +64,8 @@ MOVIES = [
 ]
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    # Adding timeout=10 helps avoid "database is locked" during concurrent access
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -107,6 +108,7 @@ def register():
 
     hashed = bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
+    conn = None
     try:
         conn = get_db()
         cursor = conn.execute(
@@ -115,9 +117,11 @@ def register():
         )
         user_id = cursor.lastrowid
         conn.commit()
-        conn.close()
     except sqlite3.IntegrityError:
         return jsonify({"message": "Email already registered"}), 409
+    finally:
+        if conn:
+            conn.close()
 
     token = jwt.encode({
         "user_id": user_id,
